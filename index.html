@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>アンパンマン爆散ゲーム（超過剰版）</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #fff;
+            touch-action: manipulation;
+            /* --- 修正箇所：いやな気持ち演出用のトランジション追加 --- */
+            transition: filter 0.1s, transform 0.1s;
+        }
+
+        #youtube-bg {
+            display: none; 
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            pointer-events: none;
+        }
+        #youtube-bg iframe {
+            width: 100vw;
+            height: 56.25vw;
+            min-height: 100vh;
+            min-width: 177.77vh;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        #flash {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #ff0000; 
+            z-index: 9999;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.05s ease-out;
+        }
+        .flash-active {
+            opacity: 0.7 !important; 
+        }
+
+        #game-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; 
+        }
+
+        .character {
+            position: absolute;
+            width: 120px;
+            height: 120px;
+            cursor: pointer;
+            pointer-events: auto;
+            transform: translate(-50%, -50%);
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .character img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            transition: opacity 3s ease-in-out;
+        }
+
+        .character .img2 {
+            opacity: 0;
+        }
+
+        .character.transformed .img1 {
+            opacity: 0;
+        }
+        .character.transformed .img2 {
+            opacity: 1;
+        }
+
+        .particle {
+            position: absolute;
+            background-color: #4a0400; 
+            border-radius: 50%;
+            pointer-events: none;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+            z-index: 9000;
+        }
+
+        /* --- 修正箇所：いやな気持ちになるための不快な画面エフェクト --- */
+        .unpleasant-effect {
+            filter: invert(100%) sepia(100%) hue-rotate(180deg) saturate(500%) !important;
+            transform: translate(15px, -15px) rotate(-2deg) scale(1.05) !important;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="youtube-bg">
+        <iframe src="https://www.youtube.com/embed/AIO7twL_Ruc?autoplay=1&mute=1&loop=1&playlist=AIO7twL_Ruc&controls=0&showinfo=0&modestbranding=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+    </div>
+
+    <div id="flash"></div>
+
+    <div id="game-container"></div>
+
+    <script>
+        const container = document.getElementById('game-container');
+        const flash = document.getElementById('flash');
+        
+        const img1Src = 'images-removebg-preview.png';
+        const img2Src = '1720406762569-removebg-preview - コピー.png';
+        
+        // --- 修正箇所：SEのファイル設定 ---
+        const explosionSeSrc = '紐・ロープ・切る、切れる01.mp3'; // 爆散用
+        const bubuuSeSrc = 'bubuu.mp3'; // ★おじさん用のブブー音（ご自身でファイルをご用意・指定してください）
+
+        const MAX_CHARACTERS = 25; 
+
+        function createCharacter() {
+            const charDiv = document.createElement('div');
+            charDiv.className = 'character';
+            
+            const x = Math.random() * (window.innerWidth - 120) + 60;
+            const y = Math.random() * (window.innerHeight - 120) + 60;
+            charDiv.style.left = `${x}px`;
+            charDiv.style.top = `${y}px`;
+
+            const img1 = document.createElement('img');
+            img1.src = img1Src;
+            img1.className = 'img1';
+            img1.draggable = false;
+
+            const img2 = document.createElement('img');
+            img2.src = img2Src;
+            img2.className = 'img2';
+            img2.draggable = false;
+
+            charDiv.appendChild(img1);
+            charDiv.appendChild(img2);
+            container.appendChild(charDiv);
+
+            // --- 修正箇所：おじさん判定フラグを追加し、変化時間を3〜6秒でランダム化 ---
+            let isOjisan = false;
+            const randomTransformTime = Math.random() * 3000 + 3000; // 3000ms〜6000ms
+            
+            const transformTimer = setTimeout(() => {
+                charDiv.classList.add('transformed');
+                isOjisan = true; // おじさんになったことを記録
+            }, randomTransformTime); 
+
+            const explodeAction = (e) => {
+                e.preventDefault();
+                clearTimeout(transformTimer); 
+                
+                let clientX = e.clientX;
+                let clientY = e.clientY;
+                if(e.touches && e.touches.length > 0) {
+                    clientX = e.touches[0].clientX;
+                    clientY = e.touches[0].clientY;
+                }
+
+                // --- 修正箇所：おじさんか、そうでないかで処理を分岐 ---
+                if (isOjisan) {
+                    // おじさんを触ってしまったときの「いやな気持ち」演出
+                    const bubuuSe = new Audio(bubuuSeSrc);
+                    bubuuSe.play().catch(e => console.log('SEエラー:', e));
+                    
+                    document.body.classList.add('unpleasant-effect');
+                    setTimeout(() => {
+                        document.body.classList.remove('unpleasant-effect');
+                    }, 200); // 0.2秒間画面がグニャリと反転する
+                    
+                    charDiv.remove(); 
+                    setTimeout(createCharacter, 500); 
+
+                } else {
+                    // 通常の爆散
+                    explode(clientX, clientY); 
+                    charDiv.remove(); 
+                    setTimeout(createCharacter, 500); 
+                }
+            };
+
+            charDiv.addEventListener('mousedown', explodeAction);
+            charDiv.addEventListener('touchstart', explodeAction, { passive: false });
+        }
+
+        function explode(x, y) {
+            // --- 修正箇所：爆散SEを過剰に（5重に重ねて時間差再生して激しい音にする） ---
+            for (let i = 0; i < 5; i++) {
+                setTimeout(() => {
+                    const se = new Audio(explosionSeSrc);
+                    se.volume = 1.0;
+                    se.play().catch(e => console.log('SEエラー:', e));
+                }, i * 30); // 30ミリ秒ずつズラして再生し轟音感を出す
+            }
+
+            flash.classList.add('flash-active');
+            setTimeout(() => {
+                flash.classList.remove('flash-active');
+            }, 80); 
+
+            const particleCount = 300; 
+            for(let i = 0; i < particleCount; i++) {
+                const p = document.createElement('div');
+                p.className = 'particle';
+                
+                const size = Math.random() * 35 + 5; 
+                p.style.width = `${size}px`;
+                p.style.height = `${size}px`;
+                
+                p.style.left = `${x}px`;
+                p.style.top = `${y}px`;
+                
+                const angle = Math.random() * Math.PI * 2;
+                const distance = Math.random() * 1500 + 300; 
+                const tx = Math.cos(angle) * distance;
+                const ty = Math.sin(angle) * distance + 400; 
+
+                container.appendChild(p);
+
+                p.animate([
+                    { transform: `translate(-50%, -50%) scale(1)`, opacity: 1 },
+                    { transform: `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px)) scale(0)`, opacity: 0 }
+                ], {
+                    duration: 800 + Math.random() * 800, 
+                    easing: 'cubic-bezier(0.1, 0.9, 0.2, 1)', 
+                    fill: 'forwards'
+                });
+
+                setTimeout(() => p.remove(), 1700);
+            }
+        }
+
+        for(let i = 0; i < MAX_CHARACTERS; i++) {
+            setTimeout(() => {
+                createCharacter();
+            }, i * 100);
+        }
+    </script>
+</body>
+</html>
